@@ -10,13 +10,14 @@
 //
 // Pre-titled copies of this file for all nine timeframes live in ./singles/
 // =============================================================================
-indicator("HTF Candles 30m", "HTF 30m", overlay = true,
+indicator("HTF Candles 30m", "HTF Candles 30m", overlay = true,
      max_boxes_count = 500, max_lines_count = 500, max_labels_count = 5)
 
 // ----------------------------------------------------------------------------
 // Inputs
 // ----------------------------------------------------------------------------
 htf        = input.timeframe("30", "Timeframe")                                          // @tf
+tfLabel    = input.string("30m", "Label")                                                  // @label
 maxC       = input.int(30, "Number of candles", minval = 1, maxval = 400)
 
 gS = "◆ Style"
@@ -148,11 +149,12 @@ if tfOk
 
         // --- timeframe tag ------------------------------------------------
         if showTag
+            string tagTxt = tfLabel == "" ? f_tfName(htf) : tfLabel
             if na(lb)
-                lb := label.new(bar_index, h, f_tfName(htf), style = label.style_label_left,
+                lb := label.new(bar_index, h, tagTxt, style = label.style_label_left,
                      color = color.new(color.black, 100), textcolor = col, size = size.small)
             label.set_xy(lb, bar_index, h)
-            label.set_text(lb, f_tfName(htf))
+            label.set_text(lb, tagTxt)
             label.set_textcolor(lb, col)
         else if not na(lb)
             label.delete(lb)

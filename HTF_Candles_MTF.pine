@@ -117,7 +117,7 @@ f_tfName(string tf) =>
         s % 2592000 == 0 => str.tostring(s / 2592000) + "M"
         s % 604800  == 0 => str.tostring(s / 604800)  + "W"
         s % 86400   == 0 => str.tostring(s / 86400)   + "D"
-        s % 3600    == 0 => str.tostring(s / 3600)    + "H"
+        s % 3600    == 0 => str.tostring(s / 3600)    + "h"
         s % 60      == 0 => str.tostring(s / 60)      + "m"
         => str.tostring(s) + "s"
     out
