@@ -1,0 +1,168 @@
+//@version=6
+// =============================================================================
+// HTF Candles — Single Timeframe
+//
+// One timeframe per indicator instance. Add this script to the chart once per
+// timeframe you care about (1W, 1D, 12H, 4H, 1H, 30m, 15m, 5m, 1m) and set the
+// "Timeframe" input accordingly — that way every timeframe gets its own row in
+// the chart legend with its own eye icon, so you can flip them on and off with
+// a single click, exactly like the reference screenshot.
+//
+// Pre-titled copies of this file for all nine timeframes live in ./singles/
+// =============================================================================
+indicator("HTF Candles 1m", "HTF Candles 1m", overlay = true,
+     max_boxes_count = 500, max_lines_count = 500, max_labels_count = 5)
+
+// ----------------------------------------------------------------------------
+// Inputs
+// ----------------------------------------------------------------------------
+htf        = input.timeframe("1", "Timeframe")                                          // @tf
+tfLabel    = input.string("1m", "Label")                                                  // @label
+maxC       = input.int(30, "Number of candles", minval = 1, maxval = 400)
+
+gS = "◆ Style"
+bullCol    = input.color(#6E9EE8, "Bullish",  group = gS, inline = "c")
+bearCol    = input.color(#C05C74, "Bearish",  group = gS, inline = "c")
+bWidth     = input.int(2, "Body border thickness", minval = 1, maxval = 10, group = gS)
+wickWidth  = input.int(2, "Wick thickness",        minval = 1, maxval = 10, group = gS)
+bodyStyleS = input.string("Solid", "Body border style", options = ["Solid", "Dashed", "Dotted"], group = gS)
+wickStyleS = input.string("Solid", "Wick style",        options = ["Solid", "Dashed", "Dotted"], group = gS)
+showWicks  = input.bool(true,  "Draw wicks",            group = gS)
+fillBody   = input.bool(false, "Fill body",             group = gS, inline = "f")
+fillTransp = input.int(85, "transparency", minval = 0, maxval = 100, group = gS, inline = "f")
+showTag    = input.bool(true,  "Show timeframe tag on last candle", group = gS)
+autoHide   = input.bool(true,  "Hide when chart TF >= selected TF", group = gS)
+
+bodyStyle = bodyStyleS == "Dashed" ? line.style_dashed : bodyStyleS == "Dotted" ? line.style_dotted : line.style_solid
+wickStyle = wickStyleS == "Dashed" ? line.style_dashed : wickStyleS == "Dotted" ? line.style_dotted : line.style_solid
+
+// ----------------------------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------------------------
+f_tfName(string tf) =>
+    int s = timeframe.in_seconds(tf)
+    string out = switch
+        s % 2592000 == 0 => str.tostring(s / 2592000) + "M"
+        s % 604800  == 0 => str.tostring(s / 604800)  + "W"
+        s % 86400   == 0 => str.tostring(s / 86400)   + "D"
+        s % 3600    == 0 => str.tostring(s / 3600)    + "H"
+        s % 60      == 0 => str.tostring(s / 60)      + "m"
+        => str.tostring(s) + "s"
+    out
+
+// ----------------------------------------------------------------------------
+// Candle engine
+//
+// The HTF candle is aggregated from the chart's own bars: open is taken at the
+// first bar of the period, high/low run cumulatively, close is the current
+// close. So the forming candle grows and flips colour live, tick by tick, and
+// the historical candles are exactly what was printed in real time.
+// ----------------------------------------------------------------------------
+isNew = timeframe.change(htf)
+tfOk  = not autoHide or timeframe.in_seconds() < timeframe.in_seconds(htf)
+
+var bool  started = false
+var float o  = na
+var float h  = na
+var float l  = na
+var int   x0 = na
+var box   bd = na
+var line  wu = na
+var line  wd = na
+var label lb = na
+var array<box>  boxes = array.new<box>()
+var array<line> lines = array.new<line>()
+
+if not tfOk and (array.size(boxes) > 0 or not na(lb))
+    for b in boxes
+        box.delete(b)
+    for ln in lines
+        line.delete(ln)
+    array.clear(boxes)
+    array.clear(lines)
+    label.delete(lb)
+    bd := na
+    wu := na
+    wd := na
+    lb := na
+    x0 := na
+    started := false
+
+if tfOk
+    // Skip the first, partially loaded period.
+    if isNew
+        started := true
+
+    if started
+        if isNew
+            // Make consecutive candles share their vertical edge.
+            if not na(bd)
+                box.set_right(bd, bar_index)
+
+            o  := open
+            h  := high
+            l  := low
+            x0 := bar_index
+
+            bd := box.new(bar_index, high, bar_index, low, border_color = bullCol,
+                 border_width = bWidth, border_style = bodyStyle,
+                 bgcolor = color.new(bullCol, fillBody ? fillTransp : 100))
+            wu := line.new(bar_index, high, bar_index, high, color = bullCol, width = wickWidth, style = wickStyle)
+            wd := line.new(bar_index, low,  bar_index, low,  color = bullCol, width = wickWidth, style = wickStyle)
+
+            array.push(boxes, bd)
+            array.push(lines, wu)
+            array.push(lines, wd)
+
+            if array.size(boxes) > maxC
+                box.delete(array.shift(boxes))
+                line.delete(array.shift(lines))
+                line.delete(array.shift(lines))
+        else
+            h := math.max(h, high)
+            l := math.min(l, low)
+
+        // --- live update of the forming candle ---------------------------
+        float c   = close
+        color col = c >= o ? bullCol : bearCol
+        float top = math.max(o, c)
+        float bot = math.min(o, c)
+
+        box.set_lefttop(bd, x0, top)
+        box.set_rightbottom(bd, bar_index, bot)
+        box.set_border_color(bd, col)
+        box.set_border_width(bd, bWidth)
+        box.set_border_style(bd, bodyStyle)
+        box.set_bgcolor(bd, color.new(col, fillBody ? fillTransp : 100))
+
+        int xm = math.round(math.avg(x0, bar_index))
+        line.set_xy1(wu, xm, showWicks ? h : top)
+        line.set_xy2(wu, xm, top)
+        line.set_xy1(wd, xm, showWicks ? l : bot)
+        line.set_xy2(wd, xm, bot)
+        line.set_color(wu, col)
+        line.set_color(wd, col)
+        line.set_width(wu, wickWidth)
+        line.set_width(wd, wickWidth)
+        line.set_style(wu, wickStyle)
+        line.set_style(wd, wickStyle)
+
+        // --- timeframe tag ------------------------------------------------
+        if showTag
+            string tagTxt = tfLabel == "" ? f_tfName(htf) : tfLabel
+            if na(lb)
+                lb := label.new(bar_index, h, tagTxt, style = label.style_label_left,
+                     color = color.new(color.black, 100), textcolor = col, size = size.small)
+            label.set_xy(lb, bar_index, h)
+            label.set_text(lb, tagTxt)
+            label.set_textcolor(lb, col)
+        else if not na(lb)
+            label.delete(lb)
+            lb := na
+
+// ----------------------------------------------------------------------------
+// Alerts — fire when a higher-timeframe candle closes.
+// ----------------------------------------------------------------------------
+htfClosed = isNew and started
+alertcondition(htfClosed and close[1] >= o[1], "HTF candle closed bullish", "A bullish higher-timeframe candle just closed")
+alertcondition(htfClosed and close[1] <  o[1], "HTF candle closed bearish", "A bearish higher-timeframe candle just closed")

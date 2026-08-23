@@ -1,0 +1,252 @@
+//@version=6
+// =============================================================================
+// HTF Candles — Multi Timeframe
+// Draws higher-timeframe candles (as outlined boxes + wicks) on top of any
+// lower-timeframe chart. Candles are built bar-by-bar from chart data, so the
+// forming candle expands and updates live exactly like the real HTF candle,
+// and nothing repaints on history.
+// =============================================================================
+indicator("HTF Candles — Multi Timeframe", "HTF Candles MTF", overlay = true,
+     max_boxes_count = 500, max_lines_count = 500, max_labels_count = 20)
+
+// ----------------------------------------------------------------------------
+// Global appearance
+// ----------------------------------------------------------------------------
+gG = "◆ General"
+showWicks  = input.bool(true,  "Draw wicks",                       group = gG)
+wickWidth  = input.int(2, "Wick thickness", minval = 1, maxval = 10, group = gG)
+bodyStyleS = input.string("Solid", "Body border style",  options = ["Solid", "Dashed", "Dotted"], group = gG)
+wickStyleS = input.string("Solid", "Wick style",         options = ["Solid", "Dashed", "Dotted"], group = gG)
+fillBody   = input.bool(false, "Fill body",                        group = gG, inline = "fill")
+fillTransp = input.int(85, "transparency", minval = 0, maxval = 100, group = gG, inline = "fill")
+showTag    = input.bool(true,  "Show timeframe tag on last candle", group = gG)
+autoHide   = input.bool(true,  "Hide when chart TF >= HTF",        group = gG,
+     tooltip = "A higher-timeframe candle only makes sense on a lower-timeframe chart. " +
+               "With this on, each block hides itself automatically instead of drawing garbage.")
+
+bodyStyle = bodyStyleS == "Dashed" ? line.style_dashed : bodyStyleS == "Dotted" ? line.style_dotted : line.style_solid
+wickStyle = wickStyleS == "Dashed" ? line.style_dashed : wickStyleS == "Dotted" ? line.style_dotted : line.style_solid
+
+// Default palette taken from the reference screenshot
+C_BULL = #6E9EE8
+C_BEAR = #C05C74
+
+// ----------------------------------------------------------------------------
+// Per-timeframe settings
+// ----------------------------------------------------------------------------
+g1 = "1 ▸ Weekly"
+on1 = input.bool(false, "Enable", group = g1, inline = "a")
+tf1 = input.timeframe("1W", "TF",  group = g1, inline = "a")
+bu1 = input.color(C_BULL, "Bull",  group = g1, inline = "b")
+be1 = input.color(C_BEAR, "Bear",  group = g1, inline = "b")
+bw1 = input.int(2, "Border", minval = 1, maxval = 10, group = g1, inline = "b")
+nc1 = input.int(15, "Max candles", minval = 1, maxval = 200, group = g1)
+
+g2 = "2 ▸ Daily"
+on2 = input.bool(true,  "Enable", group = g2, inline = "a")
+tf2 = input.timeframe("1D", "TF",  group = g2, inline = "a")
+bu2 = input.color(C_BULL, "Bull",  group = g2, inline = "b")
+be2 = input.color(C_BEAR, "Bear",  group = g2, inline = "b")
+bw2 = input.int(2, "Border", minval = 1, maxval = 10, group = g2, inline = "b")
+nc2 = input.int(20, "Max candles", minval = 1, maxval = 200, group = g2)
+
+g3 = "3 ▸ 12 Hour"
+on3 = input.bool(false, "Enable", group = g3, inline = "a")
+tf3 = input.timeframe("720", "TF", group = g3, inline = "a")
+bu3 = input.color(C_BULL, "Bull",  group = g3, inline = "b")
+be3 = input.color(C_BEAR, "Bear",  group = g3, inline = "b")
+bw3 = input.int(2, "Border", minval = 1, maxval = 10, group = g3, inline = "b")
+nc3 = input.int(20, "Max candles", minval = 1, maxval = 200, group = g3)
+
+g4 = "4 ▸ 4 Hour"
+on4 = input.bool(false, "Enable", group = g4, inline = "a")
+tf4 = input.timeframe("240", "TF", group = g4, inline = "a")
+bu4 = input.color(C_BULL, "Bull",  group = g4, inline = "b")
+be4 = input.color(C_BEAR, "Bear",  group = g4, inline = "b")
+bw4 = input.int(2, "Border", minval = 1, maxval = 10, group = g4, inline = "b")
+nc4 = input.int(20, "Max candles", minval = 1, maxval = 200, group = g4)
+
+g5 = "5 ▸ 1 Hour"
+on5 = input.bool(false, "Enable", group = g5, inline = "a")
+tf5 = input.timeframe("60", "TF",  group = g5, inline = "a")
+bu5 = input.color(C_BULL, "Bull",  group = g5, inline = "b")
+be5 = input.color(C_BEAR, "Bear",  group = g5, inline = "b")
+bw5 = input.int(2, "Border", minval = 1, maxval = 10, group = g5, inline = "b")
+nc5 = input.int(20, "Max candles", minval = 1, maxval = 200, group = g5)
+
+g6 = "6 ▸ 30 Minute"
+on6 = input.bool(false, "Enable", group = g6, inline = "a")
+tf6 = input.timeframe("30", "TF",  group = g6, inline = "a")
+bu6 = input.color(C_BULL, "Bull",  group = g6, inline = "b")
+be6 = input.color(C_BEAR, "Bear",  group = g6, inline = "b")
+bw6 = input.int(2, "Border", minval = 1, maxval = 10, group = g6, inline = "b")
+nc6 = input.int(20, "Max candles", minval = 1, maxval = 200, group = g6)
+
+g7 = "7 ▸ 15 Minute"
+on7 = input.bool(false, "Enable", group = g7, inline = "a")
+tf7 = input.timeframe("15", "TF",  group = g7, inline = "a")
+bu7 = input.color(C_BULL, "Bull",  group = g7, inline = "b")
+be7 = input.color(C_BEAR, "Bear",  group = g7, inline = "b")
+bw7 = input.int(2, "Border", minval = 1, maxval = 10, group = g7, inline = "b")
+nc7 = input.int(20, "Max candles", minval = 1, maxval = 200, group = g7)
+
+g8 = "8 ▸ 5 Minute"
+on8 = input.bool(false, "Enable", group = g8, inline = "a")
+tf8 = input.timeframe("5", "TF",   group = g8, inline = "a")
+bu8 = input.color(C_BULL, "Bull",  group = g8, inline = "b")
+be8 = input.color(C_BEAR, "Bear",  group = g8, inline = "b")
+bw8 = input.int(2, "Border", minval = 1, maxval = 10, group = g8, inline = "b")
+nc8 = input.int(20, "Max candles", minval = 1, maxval = 200, group = g8)
+
+g9 = "9 ▸ 1 Minute"
+on9 = input.bool(false, "Enable", group = g9, inline = "a")
+tf9 = input.timeframe("1", "TF",   group = g9, inline = "a")
+bu9 = input.color(C_BULL, "Bull",  group = g9, inline = "b")
+be9 = input.color(C_BEAR, "Bear",  group = g9, inline = "b")
+bw9 = input.int(2, "Border", minval = 1, maxval = 10, group = g9, inline = "b")
+nc9 = input.int(20, "Max candles", minval = 1, maxval = 200, group = g9)
+
+// ----------------------------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------------------------
+
+// Human readable name for a timeframe string ("720" -> "12H")
+f_tfName(string tf) =>
+    int s = timeframe.in_seconds(tf)
+    string out = switch
+        s % 2592000 == 0 => str.tostring(s / 2592000) + "M"
+        s % 604800  == 0 => str.tostring(s / 604800)  + "W"
+        s % 86400   == 0 => str.tostring(s / 86400)   + "D"
+        s % 3600    == 0 => str.tostring(s / 3600)    + "h"
+        s % 60      == 0 => str.tostring(s / 60)      + "m"
+        => str.tostring(s) + "s"
+    out
+
+// -----------------------------------------------------------------------------
+// Candle engine.
+//
+// Each call site owns its own `var` state, so this is called exactly once per
+// timeframe, unconditionally, on every bar. The HTF OHLC is aggregated from the
+// chart's own bars (open at the first bar of the period, running high/low,
+// close = current close) — that is what makes the forming candle move live and
+// what keeps history identical to what you saw in real time.
+// -----------------------------------------------------------------------------
+f_htfCandles(bool enabled, string tf, color bullCol, color bearCol, int bWidth, int maxC) =>
+    // Stateful calls must be evaluated on every bar, outside any condition.
+    bool isNew = timeframe.change(tf)
+    bool tfOk  = not autoHide or timeframe.in_seconds() < timeframe.in_seconds(tf)
+    bool on    = enabled and tfOk
+
+    var bool  started = false
+    var float o  = na
+    var float h  = na
+    var float l  = na
+    var int   x0 = na
+    var box   bd = na
+    var line  wu = na
+    var line  wd = na
+    var label lb = na
+    var array<box>  boxes = array.new<box>()
+    var array<line> lines = array.new<line>()
+
+    // Turned off (or chart TF is too high): wipe the drawings once.
+    if not on and (array.size(boxes) > 0 or not na(lb))
+        for b in boxes
+            box.delete(b)
+        for ln in lines
+            line.delete(ln)
+        array.clear(boxes)
+        array.clear(lines)
+        label.delete(lb)
+        bd := na
+        wu := na
+        wd := na
+        lb := na
+        x0 := na
+        started := false
+
+    if on
+        // Ignore the very first, partially loaded period.
+        if isNew
+            started := true
+
+        if started
+            if isNew
+                // Close the previous candle exactly where the new one starts so
+                // consecutive candles touch, like on a real chart.
+                if not na(bd)
+                    box.set_right(bd, bar_index)
+
+                o  := open
+                h  := high
+                l  := low
+                x0 := bar_index
+
+                bd := box.new(bar_index, high, bar_index, low, border_color = bullCol,
+                     border_width = bWidth, border_style = bodyStyle,
+                     bgcolor = color.new(bullCol, fillBody ? fillTransp : 100))
+                wu := line.new(bar_index, high, bar_index, high, color = bullCol, width = wickWidth, style = wickStyle)
+                wd := line.new(bar_index, low,  bar_index, low,  color = bullCol, width = wickWidth, style = wickStyle)
+
+                array.push(boxes, bd)
+                array.push(lines, wu)
+                array.push(lines, wd)
+
+                // Trim history to the requested number of candles.
+                if array.size(boxes) > maxC
+                    box.delete(array.shift(boxes))
+                    line.delete(array.shift(lines))
+                    line.delete(array.shift(lines))
+            else
+                h := math.max(h, high)
+                l := math.min(l, low)
+
+            // --- live update of the forming candle -------------------------
+            float c   = close
+            color col = c >= o ? bullCol : bearCol
+            float top = math.max(o, c)
+            float bot = math.min(o, c)
+
+            box.set_lefttop(bd, x0, top)
+            box.set_rightbottom(bd, bar_index, bot)
+            box.set_border_color(bd, col)
+            box.set_border_width(bd, bWidth)
+            box.set_border_style(bd, bodyStyle)
+            box.set_bgcolor(bd, color.new(col, fillBody ? fillTransp : 100))
+
+            int xm = math.round(math.avg(x0, bar_index))
+            line.set_xy1(wu, xm, showWicks ? h : top)
+            line.set_xy2(wu, xm, top)
+            line.set_xy1(wd, xm, showWicks ? l : bot)
+            line.set_xy2(wd, xm, bot)
+            line.set_color(wu, col)
+            line.set_color(wd, col)
+            line.set_width(wu, wickWidth)
+            line.set_width(wd, wickWidth)
+            line.set_style(wu, wickStyle)
+            line.set_style(wd, wickStyle)
+
+            // --- timeframe tag on the newest candle ------------------------
+            if showTag
+                if na(lb)
+                    lb := label.new(bar_index, h, f_tfName(tf), style = label.style_label_left,
+                         color = color.new(color.black, 100), textcolor = col, size = size.small)
+                label.set_xy(lb, bar_index, h)
+                label.set_text(lb, f_tfName(tf))
+                label.set_textcolor(lb, col)
+            else if not na(lb)
+                label.delete(lb)
+                lb := na
+
+// ----------------------------------------------------------------------------
+// One unconditional call per timeframe (each keeps its own independent state).
+// ----------------------------------------------------------------------------
+f_htfCandles(on1, tf1, bu1, be1, bw1, nc1)
+f_htfCandles(on2, tf2, bu2, be2, bw2, nc2)
+f_htfCandles(on3, tf3, bu3, be3, bw3, nc3)
+f_htfCandles(on4, tf4, bu4, be4, bw4, nc4)
+f_htfCandles(on5, tf5, bu5, be5, bw5, nc5)
+f_htfCandles(on6, tf6, bu6, be6, bw6, nc6)
+f_htfCandles(on7, tf7, bu7, be7, bw7, nc7)
+f_htfCandles(on8, tf8, bu8, be8, bw8, nc8)
+f_htfCandles(on9, tf9, bu9, be9, bw9, nc9)
