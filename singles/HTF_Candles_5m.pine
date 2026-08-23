@@ -17,7 +17,7 @@ indicator("HTF Candles 5m", "HTF Candles 5m", overlay = true,
 // Inputs
 // ----------------------------------------------------------------------------
 htf        = input.timeframe("5", "Timeframe")                                          // @tf
-tfLabel    = input.string("5m", "Label")                                                  // @label
+tfLabel    = input.string("", "Label", tooltip = "Leave empty to name the tag automatically from the selected timeframe (W, D, 12h, 4h, 1h, 30m …). Type something here only to override it.")
 maxC       = input.int(30, "Number of candles", minval = 1, maxval = 400)
 
 gS = "◆ Style"
@@ -39,14 +39,17 @@ wickStyle = wickStyleS == "Dashed" ? line.style_dashed : wickStyleS == "Dotted" 
 // ----------------------------------------------------------------------------
 // Helpers
 // ----------------------------------------------------------------------------
+// Name of a timeframe, in the same style used for the script titles:
+// "1W" -> W, "1D" -> D, "720" -> 12h, "60" -> 1h, "30" -> 30m.
+// The count is dropped only when it is 1 and the unit is a day or longer.
 f_tfName(string tf) =>
     int s = timeframe.in_seconds(tf)
     string out = switch
-        s % 2592000 == 0 => str.tostring(s / 2592000) + "M"
-        s % 604800  == 0 => str.tostring(s / 604800)  + "W"
-        s % 86400   == 0 => str.tostring(s / 86400)   + "D"
-        s % 3600    == 0 => str.tostring(s / 3600)    + "H"
-        s % 60      == 0 => str.tostring(s / 60)      + "m"
+        s % 2592000 == 0 => (s / 2592000 > 1 ? str.tostring(s / 2592000) : "") + "M"
+        s % 604800  == 0 => (s / 604800  > 1 ? str.tostring(s / 604800)  : "") + "W"
+        s % 86400   == 0 => (s / 86400   > 1 ? str.tostring(s / 86400)   : "") + "D"
+        s % 3600    == 0 => str.tostring(s / 3600) + "h"
+        s % 60      == 0 => str.tostring(s / 60)   + "m"
         => str.tostring(s) + "s"
     out
 

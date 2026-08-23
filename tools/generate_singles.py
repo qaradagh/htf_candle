@@ -31,7 +31,6 @@ TIMEFRAMES = [
 
 TITLE_RE = re.compile(r'^indicator\("HTF Candles", "HTF Candles",', re.MULTILINE)
 TF_RE = re.compile(r'^htf(\s*)=\s*input\.timeframe\("[^"]*"(.*//\s*@tf)$', re.MULTILINE)
-LABEL_RE = re.compile(r'^tfLabel(\s*)=\s*input\.string\("[^"]*"(.*//\s*@label)$', re.MULTILINE)
 
 
 def main() -> None:
@@ -47,10 +46,9 @@ def main() -> None:
         src, n_tf = TF_RE.subn(
             lambda m: f'htf{m.group(1)}= input.timeframe("{tf}"{m.group(2)}', src, count=1
         )
-        src, n_lbl = LABEL_RE.subn(
-            lambda m: f'tfLabel{m.group(1)}= input.string("{label}"{m.group(2)}', src, count=1
-        )
-        if src == template or n_tf != 1 or n_lbl != 1:
+        # The on-chart tag is not stamped: the script derives it from whatever
+        # timeframe is selected, so it stays correct even if the input is changed.
+        if src == template or n_tf != 1:
             raise SystemExit("template markers not found — did the template change?")
 
         out = OUT_DIR / f"HTF_Candles_{label}.pine"

@@ -110,15 +110,17 @@ nc9 = input.int(20, "Max candles", minval = 1, maxval = 200, group = g9)
 // Helpers
 // ----------------------------------------------------------------------------
 
-// Human readable name for a timeframe string ("720" -> "12H")
+// Human readable name for a timeframe string:
+// "1W" -> W, "1D" -> D, "720" -> 12h, "60" -> 1h, "30" -> 30m.
+// The count is dropped only when it is 1 and the unit is a day or longer.
 f_tfName(string tf) =>
     int s = timeframe.in_seconds(tf)
     string out = switch
-        s % 2592000 == 0 => str.tostring(s / 2592000) + "M"
-        s % 604800  == 0 => str.tostring(s / 604800)  + "W"
-        s % 86400   == 0 => str.tostring(s / 86400)   + "D"
-        s % 3600    == 0 => str.tostring(s / 3600)    + "h"
-        s % 60      == 0 => str.tostring(s / 60)      + "m"
+        s % 2592000 == 0 => (s / 2592000 > 1 ? str.tostring(s / 2592000) : "") + "M"
+        s % 604800  == 0 => (s / 604800  > 1 ? str.tostring(s / 604800)  : "") + "W"
+        s % 86400   == 0 => (s / 86400   > 1 ? str.tostring(s / 86400)   : "") + "D"
+        s % 3600    == 0 => str.tostring(s / 3600) + "h"
+        s % 60      == 0 => str.tostring(s / 60)   + "m"
         => str.tostring(s) + "s"
     out
 
